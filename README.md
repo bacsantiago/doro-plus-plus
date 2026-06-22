@@ -20,4 +20,8 @@ let age = 22
 
 if age is greater than 18 {
     print "Adult"
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 19b5e3f2f3d103ad530137e4e1ef9ddbc1fd7528
