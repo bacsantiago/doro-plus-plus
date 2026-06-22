@@ -1,0 +1,7 @@
+let firstName = "Basil"
+let lastName = "Santiago"
+let age = 22
+
+print "Hello " + firstName
+print firstName + " " + lastName
+print "Age: " + age
