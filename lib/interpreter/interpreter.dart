@@ -52,16 +52,28 @@ class Interpreter {
     }
 
     final condition = line.substring(3, line.length - 1).trim();
-
     final isConditionTrue = evaluateCondition(condition, line, lineNumber);
 
-    final closingBraceIndex = findClosingBrace(lines, ifLineIndex);
+    final ifClosingBraceIndex = findClosingBrace(lines, ifLineIndex);
+
+    final elseLineIndex = ifClosingBraceIndex + 1;
+    final hasElseBlock =
+        elseLineIndex < lines.length && lines[elseLineIndex].trim() == 'else {';
 
     if (isConditionTrue) {
-      executeLines(lines, ifLineIndex + 1, closingBraceIndex);
+      executeLines(lines, ifLineIndex + 1, ifClosingBraceIndex);
+    } else if (hasElseBlock) {
+      final elseClosingBraceIndex = findClosingBrace(lines, elseLineIndex);
+      executeLines(lines, elseLineIndex + 1, elseClosingBraceIndex);
+      return elseClosingBraceIndex + 1;
     }
 
-    return closingBraceIndex + 1;
+    if (hasElseBlock) {
+      final elseClosingBraceIndex = findClosingBrace(lines, elseLineIndex);
+      return elseClosingBraceIndex + 1;
+    }
+
+    return ifClosingBraceIndex + 1;
   }
 
   int findClosingBrace(List<String> lines, int startIndex) {
@@ -101,6 +113,14 @@ class Interpreter {
       return evaluateBetween(parts, line, lineNumber);
     }
 
+    if (isExistsCondition(parts)) {
+      return evaluateExists(parts, line, lineNumber);
+    }
+
+    if (isEmptyCondition(parts)) {
+      return evaluateEmpty(parts, line, lineNumber);
+    }
+
     error(
       message: 'I do not understand this condition yet.',
       lineNumber: lineNumber,
@@ -110,6 +130,8 @@ Supported conditions right now:
 if age is greater than 18 {
 if age is less than 18 {
 if age is equal to 18 {
+if user exists {
+if name is empty {
 if score is between 75 and 100 {''',
     );
   }
@@ -140,6 +162,14 @@ if score is between 75 and 100 {''',
         parts[1] == 'is' &&
         parts[2] == 'between' &&
         parts[4] == 'and';
+  }
+
+  bool isExistsCondition(List<String> parts) {
+    return parts.length == 2 && parts[1] == 'exists';
+  }
+
+  bool isEmptyCondition(List<String> parts) {
+    return parts.length == 3 && parts[1] == 'is' && parts[2] == 'empty';
   }
 
   int resolveRequiredNumber(String value, String line, int lineNumber) {
@@ -188,6 +218,43 @@ if score is between 75 and 100 {''',
     final max = resolveRequiredNumber(parts[5], line, lineNumber);
 
     return value >= min && value <= max;
+  }
+
+  bool evaluateExists(List<String> parts, String line, int lineNumber) {
+    final variableName = parts[0];
+    return variables.containsKey(variableName);
+  }
+
+  bool evaluateEmpty(List<String> parts, String line, int lineNumber) {
+    final variableName = parts[0];
+
+    if (!variables.containsKey(variableName)) {
+      error(
+        message: 'The variable "$variableName" does not exist.',
+        lineNumber: lineNumber,
+        line: line,
+        hint: 'Declare it first before checking if it is empty.',
+      );
+    }
+
+    final value = variables[variableName];
+
+    if (value is String) {
+      return value.isEmpty;
+    }
+
+    error(
+      message: '"$variableName" must contain text.',
+      lineNumber: lineNumber,
+      line: line,
+      hint: '''
+Example:
+
+let name = ""
+
+if name is empty {
+}''',
+    );
   }
 
   void executeLine(String line, int lineNumber) {
