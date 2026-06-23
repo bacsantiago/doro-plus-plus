@@ -1,8 +1,3 @@
-let age = 22
+let name = "Basil"
 
-if age is greater than 18{
-    print "Adult"
-}
-else {
-    print "Minor"
-}
+print "Hello " + name
