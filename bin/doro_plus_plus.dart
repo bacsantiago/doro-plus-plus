@@ -1,8 +1,7 @@
 import 'dart:io';
 
-import 'package:doro_plus_plus/interpreter/interpreter.dart';
 import 'package:doro_plus_plus/lexer/lexer.dart';
-import 'package:doro_plus_plus/lexer/token.dart';
+import 'package:doro_plus_plus/parser/parser.dart';
 
 void main(List<String> arguments) {
   if (arguments.isEmpty) {
@@ -24,14 +23,14 @@ void main(List<String> arguments) {
 
   final source = file.readAsStringSync();
 
-  final interpreter = Interpreter();
-  interpreter.run(source);
-
   final lexer = Lexer();
   final tokens = lexer.tokenize(source);
 
-  for (final token in tokens) {
-    print(token);
+  final parser = Parser(tokens);
+
+  final statements = parser.parse();
+
+  for (final statement in statements) {
+    print(statement);
   }
-  return;
 }
