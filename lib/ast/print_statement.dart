@@ -1,12 +1,13 @@
+import 'expression.dart';
 import 'statement.dart';
 
 class PrintStatement extends Statement {
-  final dynamic value;
+  final Expression expression;
 
-  PrintStatement({required this.value});
+  PrintStatement({required this.expression});
 
   @override
   String toString() {
-    return 'PrintStatement(value: $value)';
+    return 'PrintStatement(expression: $expression)';
   }
 }

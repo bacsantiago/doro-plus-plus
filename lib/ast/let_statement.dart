@@ -1,13 +1,14 @@
+import 'expression.dart';
 import 'statement.dart';
 
 class LetStatement extends Statement {
   final String name;
-  final dynamic value;
+  final Expression expression;
 
-  LetStatement({required this.name, required this.value});
+  LetStatement({required this.name, required this.expression});
 
   @override
   String toString() {
-    return 'LetStatement(name: $name, value: $value)';
+    return 'LetStatement(name: $name, expression: $expression)';
   }
 }
