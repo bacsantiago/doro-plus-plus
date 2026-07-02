@@ -1,3 +1,10 @@
+import 'package:doro_plus_plus/ast/binary_expression.dart';
+import 'package:doro_plus_plus/ast/expression.dart';
+import 'package:doro_plus_plus/ast/let_statement.dart';
+import 'package:doro_plus_plus/ast/literal_expression.dart';
+import 'package:doro_plus_plus/ast/print_statement.dart';
+import 'package:doro_plus_plus/ast/statement.dart';
+import 'package:doro_plus_plus/ast/variable_expression.dart';
 import 'package:doro_plus_plus/expressions/expression_evaluator.dart';
 
 class Interpreter {
@@ -8,6 +15,73 @@ class Interpreter {
     expressionEvaluator = ExpressionEvaluator(
       variables: variables,
       error: error,
+    );
+  }
+
+  void interpret(List<Statement> statements) {
+    for (final statement in statements) {
+      executeStatement(statement);
+    }
+  }
+
+  void executeStatement(Statement statement) {
+    if (statement is LetStatement) {
+      variables[statement.name] = evaluateExpression(statement.expression);
+      return;
+    }
+
+    if (statement is PrintStatement) {
+      final value = evaluateExpression(statement.expression);
+      print(value);
+      return;
+    }
+
+    runtimeError(
+      message: 'I do not know how to run this statement yet.',
+      hint: 'Supported statements right now:\nlet name = "Basil"\nprint name',
+    );
+  }
+
+  dynamic evaluateExpression(Expression expression) {
+    if (expression is LiteralExpression) {
+      return expression.value;
+    }
+
+    if (expression is VariableExpression) {
+      if (variables.containsKey(expression.name)) {
+        return variables[expression.name];
+      }
+
+      runtimeError(
+        message: 'The variable "${expression.name}" does not exist.',
+        hint: 'Declare it first with:\nlet ${expression.name} = "some value"',
+      );
+    }
+
+    if (expression is BinaryExpression) {
+      final left = evaluateExpression(expression.left);
+      final right = evaluateExpression(expression.right);
+
+      if (expression.operator == '+') {
+        if (left is num && right is num) {
+          return left + right;
+        }
+
+        if (left is String || right is String) {
+          return '$left$right';
+        }
+      }
+
+      runtimeError(
+        message: 'I do not know how to use "${expression.operator}" here yet.',
+        hint:
+            'Supported binary operator right now:\n"Hello " + name\n10 + 20',
+      );
+    }
+
+    runtimeError(
+      message: 'I do not know how to read this expression yet.',
+      hint: 'Supported expressions right now: text, numbers, variables, and +.',
     );
   }
 
@@ -438,6 +512,19 @@ print "Hello " + name''',
     print('');
     print('Line $lineNumber:');
     print(line);
+
+    if (hint != null) {
+      print('');
+      print(hint);
+    }
+
+    throw Exception('Doro++ stopped because of an error.');
+  }
+
+  Never runtimeError({required String message, String? hint}) {
+    print('Doro++ Error');
+    print('');
+    print(message);
 
     if (hint != null) {
       print('');
