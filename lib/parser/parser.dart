@@ -1,9 +1,16 @@
 import '../ast/statement.dart';
 import '../lexer/token.dart';
+import '../ast/between_expression.dart';
 import '../ast/let_statement.dart';
 import '../ast/print_statement.dart';
 import '../ast/binary_expression.dart';
+import '../ast/empty_expression.dart';
+import '../ast/equal_to_expression.dart';
+import '../ast/exists_expression.dart';
 import '../ast/expression.dart';
+import '../ast/greater_than_expression.dart';
+import '../ast/if_statement.dart';
+import '../ast/less_than_expression.dart';
 import '../ast/literal_expression.dart';
 import '../ast/variable_expression.dart';
 import '../lexer/token_type.dart';
@@ -40,6 +47,8 @@ class Parser {
           return parsePrintStatement();
         case 'let':
           return parseLetStatement();
+        case 'if':
+          return parseIfStatement();
       }
     }
 
@@ -90,6 +99,103 @@ class Parser {
     return PrintStatement(expression: expression);
   }
 
+  IfStatement parseIfStatement() {
+    advance(); // if
+
+    final condition = parseConditionExpression();
+
+    consume(TokenType.leftBrace, 'Expected "{" after if condition.');
+
+    final thenBranch = parseBlockStatements();
+    List<Statement>? elseBranch;
+
+    if (matchKeyword('else')) {
+      consume(TokenType.leftBrace, 'Expected "{" after else.');
+
+      elseBranch = parseBlockStatements();
+    }
+
+    return IfStatement(
+      condition: condition,
+      thenBranch: thenBranch,
+      elseBranch: elseBranch,
+    );
+  }
+
+  List<Statement> parseBlockStatements() {
+    final statements = <Statement>[];
+
+    while (!isAtEnd && peek().type != TokenType.rightBrace) {
+      final statement = parseStatement();
+
+      if (statement != null) {
+        statements.add(statement);
+      }
+    }
+
+    consume(TokenType.rightBrace, 'Expected "}" after block.');
+
+    return statements;
+  }
+
+  Expression parseConditionExpression() {
+    final left = parsePrimary();
+
+    if (left is! VariableExpression) {
+      throw Exception('Expected variable name at the start of condition.');
+    }
+
+    if (matchKeyword('exists')) {
+      return ExistsExpression(left.name);
+    }
+
+    consumeKeyword('is', 'Expected "is" in condition.');
+
+    if (matchKeyword('greater')) {
+      consumeKeyword('than', 'Expected "than" after "greater".');
+
+      final right = parsePrimary();
+
+      return GreaterThanExpression(left: left, right: right);
+    }
+
+    if (matchKeyword('less')) {
+      consumeKeyword('than', 'Expected "than" after "less".');
+
+      final right = parsePrimary();
+
+      return LessThanExpression(left: left, right: right);
+    }
+
+    if (matchKeyword('equal')) {
+      consumeKeyword('to', 'Expected "to" after "equal".');
+
+      final right = parsePrimary();
+
+      return EqualToExpression(left: left, right: right);
+    }
+
+    if (matchKeyword('between')) {
+      final minimum = parsePrimary();
+
+      consumeKeyword('and', 'Expected "and" in between condition.');
+
+      final maximum = parsePrimary();
+
+      return BetweenExpression(
+        value: left,
+        minimum: minimum,
+        maximum: maximum,
+      );
+    }
+
+    if (matchKeyword('empty')) {
+      return EmptyExpression(left.name);
+    }
+
+    throw Exception('Expected condition after "is".');
+  }
+
   bool get isAtEnd {
     return peek().type.name == 'eof';
   }
@@ -104,6 +210,31 @@ class Parser {
     }
 
     return tokens[current - 1];
+  }
+
+  Token consume(TokenType type, String message) {
+    if (peek().type == type) {
+      return advance();
+    }
+
+    throw Exception(message);
+  }
+
+  void consumeKeyword(String keyword, String message) {
+    if (matchKeyword(keyword)) {
+      return;
+    }
+
+    throw Exception(message);
+  }
+
+  bool matchKeyword(String keyword) {
+    if (peek().type == TokenType.keyword && peek().lexeme == keyword) {
+      advance();
+      return true;
+    }
+
+    return false;
   }
 
   LetStatement parseLetStatement() {

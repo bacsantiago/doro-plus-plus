@@ -1,6 +1,13 @@
+import 'package:doro_plus_plus/ast/between_expression.dart';
 import 'package:doro_plus_plus/ast/binary_expression.dart';
+import 'package:doro_plus_plus/ast/empty_expression.dart';
+import 'package:doro_plus_plus/ast/equal_to_expression.dart';
+import 'package:doro_plus_plus/ast/exists_expression.dart';
 import 'package:doro_plus_plus/ast/expression.dart';
+import 'package:doro_plus_plus/ast/greater_than_expression.dart';
+import 'package:doro_plus_plus/ast/if_statement.dart';
 import 'package:doro_plus_plus/ast/let_statement.dart';
+import 'package:doro_plus_plus/ast/less_than_expression.dart';
 import 'package:doro_plus_plus/ast/literal_expression.dart';
 import 'package:doro_plus_plus/ast/print_statement.dart';
 import 'package:doro_plus_plus/ast/statement.dart';
@@ -36,9 +43,31 @@ class Interpreter {
       return;
     }
 
+    if (statement is IfStatement) {
+      final condition = evaluateExpression(statement.condition);
+
+      if (condition is! bool) {
+        runtimeError(
+          message: 'This if condition did not become true or false.',
+          hint: 'Use a condition like:\nif age is greater than 18 {',
+        );
+      }
+
+      final branch = condition ? statement.thenBranch : statement.elseBranch;
+
+      if (branch != null) {
+        for (final branchStatement in branch) {
+          executeStatement(branchStatement);
+        }
+      }
+
+      return;
+    }
+
     runtimeError(
       message: 'I do not know how to run this statement yet.',
-      hint: 'Supported statements right now:\nlet name = "Basil"\nprint name',
+      hint:
+          'Supported statements right now:\nlet name = "Basil"\nprint name\nif age is greater than 18 {',
     );
   }
 
@@ -79,9 +108,78 @@ class Interpreter {
       );
     }
 
+    if (expression is GreaterThanExpression) {
+      final left = evaluateExpression(expression.left);
+      final right = evaluateExpression(expression.right);
+
+      return requireNumber(left, 'left side') > requireNumber(right, 'right side');
+    }
+
+    if (expression is LessThanExpression) {
+      final left = evaluateExpression(expression.left);
+      final right = evaluateExpression(expression.right);
+
+      return requireNumber(left, 'left side') < requireNumber(right, 'right side');
+    }
+
+    if (expression is EqualToExpression) {
+      final left = evaluateExpression(expression.left);
+      final right = evaluateExpression(expression.right);
+
+      return left == right;
+    }
+
+    if (expression is BetweenExpression) {
+      final value = evaluateExpression(expression.value);
+      final minimum = evaluateExpression(expression.minimum);
+      final maximum = evaluateExpression(expression.maximum);
+
+      return requireNumber(value, 'value') >=
+              requireNumber(minimum, 'minimum value') &&
+          requireNumber(value, 'value') <=
+              requireNumber(maximum, 'maximum value');
+    }
+
+    if (expression is ExistsExpression) {
+      return variables.containsKey(expression.name);
+    }
+
+    if (expression is EmptyExpression) {
+      if (!variables.containsKey(expression.name)) {
+        runtimeError(
+          message: 'The variable "${expression.name}" does not exist.',
+          hint: 'Declare it first before checking if it is empty.',
+        );
+      }
+
+      final value = variables[expression.name];
+
+      if (value is String) {
+        return value.isEmpty;
+      }
+
+      runtimeError(
+        message: 'The variable "${expression.name}" must contain text.',
+        hint: 'Example:\nlet name = ""\nif name is empty {',
+      );
+    }
+
     runtimeError(
       message: 'I do not know how to read this expression yet.',
-      hint: 'Supported expressions right now: text, numbers, variables, and +.',
+      hint:
+          'Supported expressions right now: text, numbers, variables, +, and if conditions.',
+    );
+  }
+
+  num requireNumber(dynamic value, String description) {
+    if (value is num) {
+      return value;
+    }
+
+    runtimeError(
+      message: 'The $description must be a number.',
+      hint:
+          'Use a number or a variable containing a number, like:\nlet age = 22',
     );
   }
 

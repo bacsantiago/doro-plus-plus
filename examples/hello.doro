@@ -1,3 +1,7 @@
-let name = "Basil"
+let age = 10
 
-print "Hello " + name
+if age is greater than 18 {
+    print "legal"
+} else{
+    print "MINOR"
+}
