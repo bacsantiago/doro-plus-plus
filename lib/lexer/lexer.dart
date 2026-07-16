@@ -7,6 +7,7 @@ class Lexer {
     'print',
     'if',
     'else',
+    'repeat',
     'is',
     'greater',
     'less',
@@ -17,6 +18,9 @@ class Lexer {
     'and',
     'exists',
     'empty',
+    'true',
+    'false',
+    'return',
   };
 
   List<Token> tokenize(String source) {
@@ -65,6 +69,15 @@ class Lexer {
         continue;
       }
 
+      if (char == ',') {
+        tokens.add(
+          Token(type: TokenType.comma, lexeme: ',', line: line, column: column),
+        );
+        i++;
+        column++;
+        continue;
+      }
+
       if (char == '{') {
         tokens.add(
           Token(
@@ -84,6 +97,34 @@ class Lexer {
           Token(
             type: TokenType.rightBrace,
             lexeme: '}',
+            line: line,
+            column: column,
+          ),
+        );
+        i++;
+        column++;
+        continue;
+      }
+
+      if (char == '(') {
+        tokens.add(
+          Token(
+            type: TokenType.leftParen,
+            lexeme: '(',
+            line: line,
+            column: column,
+          ),
+        );
+        i++;
+        column++;
+        continue;
+      }
+
+      if (char == ')') {
+        tokens.add(
+          Token(
+            type: TokenType.rightParen,
+            lexeme: ')',
             line: line,
             column: column,
           ),

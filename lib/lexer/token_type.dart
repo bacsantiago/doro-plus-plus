@@ -6,9 +6,12 @@ enum TokenType {
 
   equals,
   plus,
+  comma,
 
   leftBrace,
   rightBrace,
+  leftParen,
+  rightParen,
 
   eof,
 }

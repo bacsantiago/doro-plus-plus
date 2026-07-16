@@ -1,6 +1,7 @@
 import '../ast/statement.dart';
 import '../lexer/token.dart';
 import '../ast/between_expression.dart';
+import '../ast/boolean_literal_expression.dart';
 import '../ast/let_statement.dart';
 import '../ast/print_statement.dart';
 import '../ast/binary_expression.dart';
@@ -8,11 +9,16 @@ import '../ast/empty_expression.dart';
 import '../ast/equal_to_expression.dart';
 import '../ast/exists_expression.dart';
 import '../ast/expression.dart';
+import '../ast/function_call_expression.dart';
+import '../ast/function_call_statement.dart';
+import '../ast/function_declaration_statement.dart';
 import '../ast/greater_than_expression.dart';
 import '../ast/if_statement.dart';
 import '../ast/less_than_expression.dart';
 import '../ast/literal_expression.dart';
+import '../ast/return_statement.dart';
 import '../ast/variable_expression.dart';
+import '../ast/repeat_statement.dart';
 import '../lexer/token_type.dart';
 
 class Parser {
@@ -49,7 +55,15 @@ class Parser {
           return parseLetStatement();
         case 'if':
           return parseIfStatement();
+        case 'repeat':
+          return parseRepeatStatement();
+        case 'return':
+          return parseReturnStatement();
       }
+    }
+
+    if (token.type == TokenType.identifier) {
+      return parseFunctionStatement();
     }
 
     throw Exception('Expected statement but found $token');
@@ -84,7 +98,21 @@ class Parser {
       return LiteralExpression(int.parse(token.lexeme));
     }
 
+    if (token.type == TokenType.keyword && token.lexeme == 'true') {
+      return BooleanLiteralExpression(true);
+    }
+
+    if (token.type == TokenType.keyword && token.lexeme == 'false') {
+      return BooleanLiteralExpression(false);
+    }
+
     if (token.type == TokenType.identifier) {
+      if (match(TokenType.leftParen)) {
+        final arguments = parseFunctionParenItems(token.lexeme);
+
+        return FunctionCallExpression(name: token.lexeme, arguments: arguments);
+      }
+
       return VariableExpression(token.lexeme);
     }
 
@@ -138,8 +166,100 @@ class Parser {
     return statements;
   }
 
+  RepeatStatement parseRepeatStatement() {
+    advance(); // repeat
+
+    final count = parseExpression();
+
+    consume(TokenType.leftBrace, 'Expected "{" after repeat count.');
+
+    final body = parseBlockStatements();
+
+    return RepeatStatement(count: count, body: body);
+  }
+
+  ReturnStatement parseReturnStatement() {
+    advance(); // return
+
+    final expression = parseExpression();
+
+    return ReturnStatement(expression: expression);
+  }
+
+  Statement parseFunctionStatement() {
+    final nameToken = advance();
+
+    consume(
+      TokenType.leftParen,
+      'Expected "(" after function name "${nameToken.lexeme}".',
+    );
+
+    final items = parseFunctionParenItems(nameToken.lexeme);
+
+    if (match(TokenType.leftBrace)) {
+      final parameters = parseFunctionParameters(nameToken.lexeme, items);
+      final body = parseBlockStatements();
+
+      return FunctionDeclarationStatement(
+        name: nameToken.lexeme,
+        parameters: parameters,
+        body: body,
+      );
+    }
+
+    return FunctionCallStatement(name: nameToken.lexeme, arguments: items);
+  }
+
+  List<Expression> parseFunctionParenItems(String functionName) {
+    final items = <Expression>[];
+
+    if (match(TokenType.rightParen)) {
+      return items;
+    }
+
+    do {
+      items.add(parseExpression());
+    } while (match(TokenType.comma));
+
+    consume(
+      TokenType.rightParen,
+      'Expected ")" after function "$functionName" parameters or arguments.',
+    );
+
+    return items;
+  }
+
+  List<String> parseFunctionParameters(
+    String functionName,
+    List<Expression> items,
+  ) {
+    final parameters = <String>[];
+
+    for (final item in items) {
+      if (item is! VariableExpression) {
+        throw Exception(
+          'Function "$functionName" parameters must be simple names.',
+        );
+      }
+
+      if (parameters.contains(item.name)) {
+        throw Exception(
+          'Function "$functionName" has duplicate parameter "${item.name}".',
+        );
+      }
+
+      parameters.add(item.name);
+    }
+
+    return parameters;
+  }
+
   Expression parseConditionExpression() {
     final left = parsePrimary();
+
+    if (peek().type == TokenType.leftBrace) {
+      return left;
+    }
 
     if (left is! VariableExpression) {
       throw Exception('Expected variable name at the start of condition.');
@@ -230,6 +350,15 @@ class Parser {
 
   bool matchKeyword(String keyword) {
     if (peek().type == TokenType.keyword && peek().lexeme == keyword) {
+      advance();
+      return true;
+    }
+
+    return false;
+  }
+
+  bool match(TokenType type) {
+    if (peek().type == type) {
       advance();
       return true;
     }

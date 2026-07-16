@@ -60,6 +60,14 @@ print "Hello " + name''',
       return value.substring(1, value.length - 1);
     }
 
+    if (value == 'true') {
+      return true;
+    }
+
+    if (value == 'false') {
+      return false;
+    }
+
     final number = int.tryParse(value);
 
     if (number != null) {

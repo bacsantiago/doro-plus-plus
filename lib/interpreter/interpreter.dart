@@ -1,22 +1,35 @@
 import 'package:doro_plus_plus/ast/between_expression.dart';
 import 'package:doro_plus_plus/ast/binary_expression.dart';
+import 'package:doro_plus_plus/ast/boolean_literal_expression.dart';
 import 'package:doro_plus_plus/ast/empty_expression.dart';
 import 'package:doro_plus_plus/ast/equal_to_expression.dart';
 import 'package:doro_plus_plus/ast/exists_expression.dart';
 import 'package:doro_plus_plus/ast/expression.dart';
+import 'package:doro_plus_plus/ast/function_call_expression.dart';
+import 'package:doro_plus_plus/ast/function_call_statement.dart';
+import 'package:doro_plus_plus/ast/function_declaration_statement.dart';
 import 'package:doro_plus_plus/ast/greater_than_expression.dart';
 import 'package:doro_plus_plus/ast/if_statement.dart';
 import 'package:doro_plus_plus/ast/let_statement.dart';
 import 'package:doro_plus_plus/ast/less_than_expression.dart';
 import 'package:doro_plus_plus/ast/literal_expression.dart';
 import 'package:doro_plus_plus/ast/print_statement.dart';
+import 'package:doro_plus_plus/ast/repeat_statement.dart';
+import 'package:doro_plus_plus/ast/return_statement.dart';
 import 'package:doro_plus_plus/ast/statement.dart';
 import 'package:doro_plus_plus/ast/variable_expression.dart';
 import 'package:doro_plus_plus/expressions/expression_evaluator.dart';
+import 'package:doro_plus_plus/interpreter/environment.dart';
+import 'package:doro_plus_plus/interpreter/return_signal.dart';
 
 class Interpreter {
-  final Map<String, dynamic> variables = {};
+  final Environment globalEnvironment = Environment();
+  final Map<String, FunctionDeclarationStatement> functions = {};
+  late Environment environment = globalEnvironment;
   late final ExpressionEvaluator expressionEvaluator;
+  int functionCallDepth = 0;
+
+  Map<String, dynamic> get variables => globalEnvironment.values;
 
   Interpreter() {
     expressionEvaluator = ExpressionEvaluator(
@@ -33,7 +46,7 @@ class Interpreter {
 
   void executeStatement(Statement statement) {
     if (statement is LetStatement) {
-      variables[statement.name] = evaluateExpression(statement.expression);
+      environment.define(statement.name, evaluateExpression(statement.expression));
       return;
     }
 
@@ -64,21 +77,141 @@ class Interpreter {
       return;
     }
 
+    if (statement is RepeatStatement) {
+      final count = evaluateExpression(statement.count);
+
+      if (count is! num) {
+        runtimeError(
+          message: 'Repeat count must be a number.',
+          hint: 'Example:\nrepeat 3 {\n  print "Hello"\n}',
+        );
+      }
+
+      if (count < 0) {
+        runtimeError(
+          message: 'Repeat count cannot be negative.',
+          hint: 'Use zero or a positive number, like:\nrepeat 3 {',
+        );
+      }
+
+      if (count != count.round()) {
+        runtimeError(
+          message: 'Repeat count must be a whole number.',
+          hint: 'Use a count like 0, 1, 2, or a variable containing one.',
+        );
+      }
+
+      final repeatCount = count.toInt();
+
+      for (var i = 0; i < repeatCount; i++) {
+        for (final bodyStatement in statement.body) {
+          executeStatement(bodyStatement);
+        }
+      }
+
+      return;
+    }
+
+    if (statement is FunctionDeclarationStatement) {
+      if (functions.containsKey(statement.name)) {
+        runtimeError(
+          message: 'The function "${statement.name}" already exists.',
+          hint:
+              'Use each function name once, like:\ngreet() {\n  print "Hello"\n}',
+        );
+      }
+
+      functions[statement.name] = statement;
+      return;
+    }
+
+    if (statement is FunctionCallStatement) {
+      invokeFunction(statement.name, statement.arguments);
+      return;
+    }
+
+    if (statement is ReturnStatement) {
+      if (functionCallDepth == 0) {
+        runtimeError(
+          message: 'Return can only be used inside a function.',
+          hint:
+              'Put return inside a function body:\ngreet(name) {\n  return "Hello " + name\n}',
+        );
+      }
+
+      final value = evaluateExpression(statement.expression);
+      throw ReturnSignal(value);
+    }
+
     runtimeError(
       message: 'I do not know how to run this statement yet.',
       hint:
-          'Supported statements right now:\nlet name = "Basil"\nprint name\nif age is greater than 18 {',
+          'Supported statements right now:\nlet name = "Basil"\nprint name\nif age is greater than 18 {\nrepeat 3 {\ngreet() {\nreturn name',
     );
   }
 
+  dynamic invokeFunction(String name, List<Expression> arguments) {
+    final function = functions[name];
+
+    if (function == null) {
+      runtimeError(
+        message: 'The function "$name" does not exist.',
+        hint:
+            'Declare it before calling it:\n$name(name) {\n  return "Hello " + name\n}\n\nprint $name("Basil")',
+      );
+    }
+
+    if (arguments.length != function.parameters.length) {
+      runtimeError(
+        message:
+            'Function "$name" expects ${function.parameters.length} ${argumentWord(function.parameters.length)}, but received ${arguments.length}.',
+        hint:
+            'Call it with the same number of values as its parameters:\n$name(${function.parameters.join(', ')})',
+      );
+    }
+
+    final argumentValues = arguments
+        .map((argument) => evaluateExpression(argument))
+        .toList();
+
+    final previousEnvironment = environment;
+    environment = Environment(parent: previousEnvironment);
+    functionCallDepth++;
+
+    try {
+      for (var i = 0; i < function.parameters.length; i++) {
+        environment.define(function.parameters[i], argumentValues[i]);
+      }
+
+      for (final bodyStatement in function.body) {
+        executeStatement(bodyStatement);
+      }
+
+      return null;
+    } on ReturnSignal catch (signal) {
+      return signal.value;
+    } finally {
+      functionCallDepth--;
+      environment = previousEnvironment;
+    }
+  }
+
   dynamic evaluateExpression(Expression expression) {
+    if (expression is FunctionCallExpression) {
+      return invokeFunction(expression.name, expression.arguments);
+    }
+
     if (expression is LiteralExpression) {
       return expression.value;
     }
 
+    if (expression is BooleanLiteralExpression) {
+      return expression.value;
+    }
+
     if (expression is VariableExpression) {
-      if (variables.containsKey(expression.name)) {
-        return variables[expression.name];
+      if (environment.contains(expression.name)) {
+        return environment.get(expression.name);
       }
 
       runtimeError(
@@ -92,6 +225,14 @@ class Interpreter {
       final right = evaluateExpression(expression.right);
 
       if (expression.operator == '+') {
+        if (left is bool || right is bool) {
+          runtimeError(
+            message: 'I cannot use booleans with "+".',
+            hint:
+                'Use booleans by themselves in if statements:\nif isAdmin {',
+          );
+        }
+
         if (left is num && right is num) {
           return left + right;
         }
@@ -141,18 +282,18 @@ class Interpreter {
     }
 
     if (expression is ExistsExpression) {
-      return variables.containsKey(expression.name);
+      return environment.contains(expression.name);
     }
 
     if (expression is EmptyExpression) {
-      if (!variables.containsKey(expression.name)) {
+      if (!environment.contains(expression.name)) {
         runtimeError(
           message: 'The variable "${expression.name}" does not exist.',
           hint: 'Declare it first before checking if it is empty.',
         );
       }
 
-      final value = variables[expression.name];
+      final value = environment.get(expression.name);
 
       if (value is String) {
         return value.isEmpty;
@@ -167,7 +308,7 @@ class Interpreter {
     runtimeError(
       message: 'I do not know how to read this expression yet.',
       hint:
-          'Supported expressions right now: text, numbers, variables, +, and if conditions.',
+          'Supported expressions right now: text, numbers, variables, +, function calls, and if conditions.',
     );
   }
 
@@ -181,6 +322,10 @@ class Interpreter {
       hint:
           'Use a number or a variable containing a number, like:\nlet age = 22',
     );
+  }
+
+  String argumentWord(int count) {
+    return count == 1 ? 'argument' : 'arguments';
   }
 
   void run(String source) {
@@ -269,6 +414,10 @@ class Interpreter {
   bool evaluateCondition(String condition, String line, int lineNumber) {
     final parts = condition.split(' ');
 
+    if (parts.length == 1) {
+      return evaluateBooleanCondition(parts.first, line, lineNumber);
+    }
+
     if (isGreaterThanCondition(parts)) {
       return evaluateGreaterThan(parts, line, lineNumber);
     }
@@ -304,7 +453,27 @@ if age is less than 18 {
 if age is equal to 18 {
 if user exists {
 if name is empty {
+if isAdmin {
 if score is between 75 and 100 {''',
+    );
+  }
+
+  bool evaluateBooleanCondition(
+    String value,
+    String line,
+    int lineNumber,
+  ) {
+    final resolved = expressionEvaluator.resolveValue(value, line, lineNumber);
+
+    if (resolved is bool) {
+      return resolved;
+    }
+
+    error(
+      message: 'This if condition did not become true or false.',
+      lineNumber: lineNumber,
+      line: line,
+      hint: 'Use a boolean value or variable, like:\nif isAdmin {',
     );
   }
 

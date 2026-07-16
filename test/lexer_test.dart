@@ -47,4 +47,58 @@ void main() {
       'eof()',
     ]);
   });
+
+  test('tokenizes boolean literals as keywords', () {
+    final lexer = Lexer();
+
+    final tokens = lexer.tokenize('let isAdmin = true\nlet isPremium = false');
+
+    expect(tokens.map((token) => token.toString()).toList(), [
+      'keyword(let)',
+      'identifier(isAdmin)',
+      'equals(=)',
+      'keyword(true)',
+      'keyword(let)',
+      'identifier(isPremium)',
+      'equals(=)',
+      'keyword(false)',
+      'eof()',
+    ]);
+  });
+
+  test('tokenizes return as a keyword', () {
+    final lexer = Lexer();
+
+    final tokens = lexer.tokenize('return "Hello"');
+
+    expect(tokens.map((token) => token.toString()).toList(), [
+      'keyword(return)',
+      'string(Hello)',
+      'eof()',
+    ]);
+  });
+
+  test('tokenizes function declaration and call parentheses', () {
+    final lexer = Lexer();
+
+    final tokens = lexer.tokenize('introduce(name, age) { }\nintroduce("Basil", 22)');
+
+    expect(tokens.map((token) => token.toString()).toList(), [
+      'identifier(introduce)',
+      'leftParen(()',
+      'identifier(name)',
+      'comma(,)',
+      'identifier(age)',
+      'rightParen())',
+      'leftBrace({)',
+      'rightBrace(})',
+      'identifier(introduce)',
+      'leftParen(()',
+      'string(Basil)',
+      'comma(,)',
+      'number(22)',
+      'rightParen())',
+      'eof()',
+    ]);
+  });
 }
